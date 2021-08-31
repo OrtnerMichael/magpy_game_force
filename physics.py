@@ -121,6 +121,14 @@ def mesh_cuboid(cuboid, nnn):
 
 
 
+def collision(object, obstacles):
+    """
+    3D collision code
+    """
+    
+
+
+
 
 
 
