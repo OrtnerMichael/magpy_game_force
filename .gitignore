@@ -1,3 +1,10 @@
+#mine
+bg.png
+__temp.py
+__temp1.py
+__temp2.py
+__temp3.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
