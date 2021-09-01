@@ -1,9 +1,9 @@
 import pygame
 import numpy as np
 import magpylib as magpy
-import matplotlib.pyplot as plt
 import random
-from physics import getFT
+from physics import getFT, collision_xy_cuboids
+from utility import create_bg_image
 
 pygame.init()
 pygame.display.set_caption("Magnetic Engine")
@@ -24,7 +24,7 @@ RESX, RESY = 960, 720
 display_force = True
 display_field_amp = True
 display_field_lines = True
-level = 1
+level = 3
 massfactorF = 1000        # translation inertia = 1/mass
 frictionF = 0.985         # translation friction
 massfactorT = 1000        # rotation inertia = 1/moment of inertia
@@ -34,7 +34,7 @@ player_size_x = 20
 player_size_y = 20
 player_start_vel = (1,-1,0)
 nx, ny = 6, 6             # force computation discretization
-M0 = 100                  # overall magnetization amplitude
+M0 = 50                   # overall magnetization amplitude
 #############################################################
 #############################################################
 
@@ -65,53 +65,43 @@ pp = np.array([
     ( 0,-player_size_y/4,0)])   # Arrow 4
 
 # init obstactles
-#   create obst input data
+#    obstacle setup
 if level == 1:
-    obst_dims = [[int(RESX/15)]*3]
+    obst_dims = [[int(RESX/8)]*3]
     obst_possis = np.array([(RESX/2, RESY/2, 0)])
     obst_mag = [(M0,0,0)]
+    obst_rot = [0]
 elif level == 2:
-    obst_dims = np.random.rand(6,3)*30+15
+    obst_dims = np.random.rand(6,3)*60+30
     obst_dims[:,2] = 20
     obst_possis = np.array([
         (150, 375, 0), (450, 225, 0), (750,75,0),
         (375, 630, 0), (630, 525, 0), (900,300,0)])
-    obst_mag0 = [(M0,0,0), (-M0,0,0), (0,M0,0), (0,-M0,0)]*3
-    obst_mag = random.sample(obst_mag0, k=len(obst_possis))
+    obst_mag = [(M0,0,0)]*6
+    obst_rot = [0,90,180,270]*4
+    obst_rot = random.sample(obst_rot, k=len(obst_possis))
+elif level ==3:
+    obst_dims = [[50,50,20]]*8
+    obst_possis = np.array([
+        (350,225,0), (350,475,0),
+        (450,200,0), (450,500,0),
+        (550,175,0), (550,525,0),
+        (650,150,0), (650,550,0)])
+    obst_mag = [(M0,0,0)]*8
+    obst_rot = [-45,45]*4
 
 #   create obst Magpylib Collection
-obst_crash_sizes = np.amax(obst_dims, axis=1)+(player_size_x+player_size_y)/4
 obst = magpy.Collection()
-obst_ps = []
-for odim, opos, omag in zip(obst_dims, obst_possis, obst_mag):
-    obst_ps += [np.array([(odim[0],odim[1],0), (-odim[0],odim[1],0), (-odim[0],-odim[1],0), (odim[0],-odim[1],0)])+opos]
+for odim, opos, omag, orot in zip(obst_dims, obst_possis, obst_mag, obst_rot):
     obst + magpy.magnet.Box(
         magnetization = omag,
         dimension = odim,
         position = opos)
-obst_ps = np.array(obst_ps)
+    obst[-1].rotate_from_angax(orot, 'z')
 
 # init background image
 if True:
-    # create a grid in the xz-symmetry plane
-    xs = np.linspace(0, RESX, 45)
-    ys = np.linspace(0, RESY, 45)
-    grid = np.array([[(x,y,0) for x in xs] for y in ys])
-    # compute B field on grid using a source method
-    # display field with Pyplot
-    fig, ax = plt.subplots(1, 1, figsize=(RESX/10,RESY/10))
-    if display_field_amp | display_field_lines:
-        Bgrid = obst.getB(grid)
-    if display_field_amp:
-        ampBgrid = np.linalg.norm(Bgrid, axis=2)
-        ax.contourf(grid[:,:,0], grid[:,:,1], np.log(ampBgrid), 100, cmap='rainbow')
-    if display_field_lines:
-        ax.streamplot(grid[:,:,0], grid[:,:,1], Bgrid[:,:,0], Bgrid[:,:,1],
-            density=3, color='k', linewidth=10, arrowsize=15)
-    ax.axis('off')
-    ax.set(xlim=(0, RESX), ylim=(0,RESY))
-    plt.tight_layout()
-    plt.savefig('bg', dpi=10)
+    create_bg_image(RESX, RESY, display_field_amp, display_field_lines, obst)
 bg = pygame.image.load("bg.png")
 bg = pygame.transform.scale(bg, (RESX, RESY))
 bg = pygame.transform.flip(bg, False, True)
@@ -195,13 +185,6 @@ while game_active:
         F_norm = F/F_len
         pygame.draw.line(screen, ORANGE, play_pos[:2], play_pos[:2]+F_norm[:2]*(10+F_len*.1), 3)
 
-    # draw obstacles
-    for ops in obst_ps[:,:,:2]:
-        pygame.draw.line(screen, BLACK, ops[0], ops[1], 4)
-        pygame.draw.line(screen, BLACK, ops[1], ops[2], 4)
-        pygame.draw.line(screen, BLACK, ops[2], ops[3], 4)
-        pygame.draw.line(screen, BLACK, ops[3], ops[0], 4)
-
     # draw target location
     pygame.draw.circle(screen, RED, target_pos[:2], target_radius, 6)
 
@@ -211,10 +194,11 @@ while game_active:
     textRect.center = ( 50, 20)
     screen.blit(text, textRect)
 
-    # crash into magnets
-    dist_to_obst = np.linalg.norm(obst_possis-play_pos, axis=1)
-    if np.any(dist_to_obst < obst_crash_sizes):
+    # magnet collision
+    collision = collision_xy_cuboids([player]*len(obst.sources), obst.sources)
+    if isinstance(collision, int):
         print('CRASH !!!')
+        print(collision)
         game_active = False
 
     # crash into walls    

@@ -1,0 +1,17 @@
+a single moving magnet can be realized by generating a large bg imgae and move it with the magnet
+
+BG image could always move with player in the center
+
+a second player could be added with collision and magnetic forces
+
+the goal of the 2nd player could be to disturb the first one - or just to be faster.
+
+magnet accelerator levels could work like car races
+
+different magnet shapes, magnet compounds, different magnetizations, different drag, inertia etc. etc.
+
+accumulate SM pieces that get attracted to the player and make him heavy AND increase size
+
+elastic collistion obstacles
+
+build your own level
